@@ -142,7 +142,6 @@ class ContactForm extends Process implements ConfigurableModule
     protected function ___processForm(InputfieldForm $form)
     {
         $session = $this->wire('session');
-        $sanitizer = $this->wire('sanitizer');
 
         $session->CSRF->validate();
         $form->processInput($this->wire('input')->post);
@@ -163,7 +162,21 @@ class ContactForm extends Process implements ConfigurableModule
         $page->parent = $cfPages;
         $page->save();
 
+        $this->sendEmail($name, $email, $message);
         return true;
+    }
+
+    private function sendEmail($name, $email, $message)
+    {
+        if ($this->send_email) {
+            $mail = wireMail();
+            $mail->to($this->send_email_to);
+            $mail->from = $email;
+            $mail->subject("New message from {$name} (contact form)");
+            $mail->body($message);
+
+            $mail->send();
+        }
     }
 
     public function getModuleConfigInputfields(InputfieldWrapper $inputfields)
