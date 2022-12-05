@@ -10,6 +10,7 @@ class ContactForm extends Process implements ConfigurableModule
             'title' => 'Contact Form',
             'summary' => 'Contact form module',
             'version' => 1,
+            'installs' => ['ContactFormAdmin']
         ];
     }
 
@@ -57,23 +58,6 @@ class ContactForm extends Process implements ConfigurableModule
         $template->allowPageNum = true;
         $template->roles = $superAdminRole;
         $template->save();
-
-        $page = new Page();
-
-        $page->template = "admin";
-        $page->name = "cf_page";
-        $page->title = "Contact form";
-        $page->save();
-
-        // set this module as the page process, this allows us to display the above
-        $page->process = 'ContactForm';
-
-        // get admin page and set as page parent
-        $admin = $this->pages->get("id=2");
-        $page->parent = $admin;
-
-        // save page
-        $page->save();
     }
 
     public function uninstall()
@@ -90,37 +74,8 @@ class ContactForm extends Process implements ConfigurableModule
             $this->wire('fields')->delete($this->fields->get('cf_name'));
             $this->wire('fields')->delete($this->fields->get('cf_email'));
             $this->wire('fields')->delete($this->fields->get('cf_message'));
+            $this->wire('modules')->uninstall('ContactFormAdmin');
         }
-    }
-
-    public function ___execute()
-    {
-        $messages = wire('pages')->find('template=cf_list,limit=10');
-        $out = '';
-
-        if ($messages->count()) {
-            $table = $this->generateTableData($messages);
-            $out .= $table->render();
-        }
-        $out .= $messages->renderPager();
-        return $out;
-    }
-
-    private function generateTableData($messages)
-    {
-        $table = $this->modules->get('MarkupAdminDataTable');
-        $table->headerRow(['Name', 'Email', 'Message', 'Send At', 'Action']);
-        foreach ($messages as $message) {
-            $table->row([
-                $message->cf_name,
-                $message->cf_email,
-                $message->cf_message,
-                $message->createdStr,
-                'View' => "view?p={$message->id}"
-            ]);
-        }
-
-        return $table;
     }
 
     protected function ___renderForm()
@@ -133,9 +88,16 @@ class ContactForm extends Process implements ConfigurableModule
             $send = $this->processForm($form);
 
             if ($send) {
-                return 'Message send';
+                $session->set('cf_sent', 1);
+                $session->redirect($this->wire('page')->url() . '?sent=1');
             }
         }
+
+        if ($input->get('sent') && $session->get('cf_sent')) {
+            $session->remove('cf_sent');
+            return $this->success_message;
+        }
+
         return $form->render();
     }
 
@@ -194,6 +156,13 @@ class ContactForm extends Process implements ConfigurableModule
         $f->requiredIf = 'send_email=1';
         $f->name = 'send_email_to';
         $f->value = $this->send_email_to;
+        $inputfields->add($f);
+
+        $f = $this->modules->get('InputfieldText');
+        $f->label = 'Success message';
+        $f->type = 'text';
+        $f->name = 'success_message';
+        $f->value = $this->success_message ?: 'Message already sent.';
         $inputfields->add($f);
     }
 
