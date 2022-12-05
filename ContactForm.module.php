@@ -103,16 +103,24 @@ class ContactForm extends Process implements ConfigurableModule
 
     protected function ___processForm(InputfieldForm $form)
     {
+        /** @var Session $session */
         $session = $this->wire('session');
+        /** @var Sanitizer $sanitizer */
+        $sanitizer = $this->wire('sanitizer');
 
         $session->CSRF->validate();
         $form->processInput($this->wire('input')->post);
+
+        if ($form->getErrors()) {
+            return false;
+        }
+
         $nameField = $form->getChildByName('name');
         $emailField = $form->getChildByName('email');
         $messageField = $form->getChildByName('message');
         $name = $nameField->attr('value');
         $email = $emailField->attr('value');
-        $message = $messageField->attr('value');
+        $message = $sanitizer->textarea($messageField->attr('value'));
 
         $page = new Page();
         $page->template = 'cf_list';
